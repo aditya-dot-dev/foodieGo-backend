@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import prisma from '../config/database.js';
 import { generateToken } from '../utils/jwt.utils.js';
 import { authenticate } from '../middleware/auth.middleware.js';
+import { emitToAdmin } from '../config/socket.js';
 
 const router = express.Router();
 
@@ -17,7 +18,7 @@ router.post('/register', async (req, res) => {
     // Validate delivery partner fields
     if (role === 'DELIVERY_PARTNER') {
       if (!vehicleType || !vehicleNumber) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: 'Vehicle details are required for delivery partners',
           message: 'Please provide vehicle type and vehicle number'
         });
@@ -65,7 +66,8 @@ router.post('/register', async (req, res) => {
     // Response based on verification status
     if (user.isVerified) {
       const token = generateToken(user);
-      res.status(201).json({
+
+      return res.status(201).json({
         message: 'User registered successfully',
         token,
         user: {
@@ -78,30 +80,16 @@ router.post('/register', async (req, res) => {
           vehicleNumber: user.vehicleNumber
         }
       });
-    } else {
-      res.status(201).json({
-        message: 'Registration successful. Please wait for admin approval.',
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          role: user.role
-        }
-      });
     }
 
-    res.status(201).json({
-      message: 'User registered successfully',
-      token,
+    return res.status(201).json({
+      message: 'Registration successful. Please wait for admin approval.',
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
         phone: user.phone,
-        role: user.role,
-        vehicleType: user.vehicleType,
-        vehicleNumber: user.vehicleNumber
+        role: user.role
       }
     });
   } catch (error) {
@@ -133,9 +121,9 @@ router.post('/login', async (req, res) => {
     // Check verification status (skip for ADMIN)
     if (user.role !== 'ADMIN' && !user.isVerified) {
       console.log('Login blocked: User not verified and not ADMIN');
-      return res.status(403).json({ 
-        error: 'Account pending verification', 
-        message: 'Your account is pending admin approval. Please wait for verification.' 
+      return res.status(403).json({
+        error: 'Account pending verification',
+        message: 'Your account is pending admin approval. Please wait for verification.'
       });
     }
 
