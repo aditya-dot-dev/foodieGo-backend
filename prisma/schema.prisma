@@ -1,0 +1,322 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String       @id @default(uuid())
+  name           String
+  email          String       @unique
+  phone          String?
+  password       String
+  role           UserRole     @default(USER)
+  full_name      String?
+  profile_image  String?
+  lat            Float?
+  lng            Float?
+  createdAt      DateTime     @default(now())
+  currentLat     Float?
+  currentLng     Float?
+  isAvailable    Boolean      @default(false)
+  vehicleNumber  String?
+  vehicleType    String?
+  addresses      Address[]
+  favorites      Favorite[]
+  deliveryOrders Order[]      @relation("DeliveryPartner")
+  orders         Order[]
+  restaurants    Restaurant[]
+  reviews        Review[]
+  wallet         Wallet?
+  isVerified     Boolean      @default(false)
+
+  @@map("users")
+}
+
+model Address {
+  id        String   @id @default(uuid())
+  userId    String
+  label     String
+  address   String
+  lat       Float?
+  lng       Float?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders    Order[]
+
+  @@map("addresses")
+}
+
+model Restaurant {
+  id           String         @id @default(uuid())
+  name         String
+  description  String
+  isOpen       Boolean        @default(true)
+  ownerId      String
+  isVerified   Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  address      String?
+  area         String?
+  city         String?
+  lat          Float?
+  lng          Float?
+  cuisine      String?
+  deliveryTime String?
+  imageUrl     String?
+  priceRange   String?
+  rating       Float?
+  openingTime  String?
+  closingTime  String?
+  phone        String?
+  favoritedBy  Favorite[]
+  categories   MenuCategory[]
+  orders       Order[]
+  owner        User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  reviews      Review[]
+  coupons      Coupon[]
+  wallet       Wallet?
+
+  @@map("restaurants")
+}
+
+model Review {
+  id           String     @id @default(uuid())
+  rating       Int
+  comment      String?
+  userId       String
+  restaurantId String
+  createdAt    DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, restaurantId])
+  @@map("reviews")
+}
+
+model MenuCategory {
+  id           String     @id @default(uuid())
+  name         String
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  menuItems    MenuItem[]
+
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id          String       @id @default(uuid())
+  name        String
+  price       Float
+  imageUrl    String?
+  isVeg       Boolean      @default(true)
+  isAvailable Boolean      @default(true)
+  categoryId  String
+  category    MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  orderItems  OrderItem[]
+
+  @@map("menu_items")
+}
+
+model Order {
+  id                 String               @id @default(uuid())
+  userId             String
+  restaurantId       String
+  status             OrderStatus          @default(PLACED)
+  totalAmount        Float                // Food items total (after coupon discount)
+  deliveryFee        Float                @default(40.0) // Delivery fee charged to customer
+  createdAt          DateTime             @default(now())
+  paymentStatus      PaymentStatus        @default(PENDING)
+  paymentIntentId    String?              @unique
+  stripePaymentId    String?
+  paidAt             DateTime?
+  cancellationReason String?
+  cancelledAt        DateTime?
+  cancelledBy        String?
+  refundAmount       Float?
+  refundStatus       RefundStatus?
+  assignedAt         DateTime?
+  deliveredAt        DateTime?
+  deliveryPartnerId  String?
+  pickedUpAt         DateTime?
+  addressId          String?
+  orderItems         OrderItem[]
+  statusHistory      OrderStatusHistory[]
+  address            Address?             @relation(fields: [addressId], references: [id])
+  deliveryPartner    User?                @relation("DeliveryPartner", fields: [deliveryPartnerId], references: [id])
+  restaurant         Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payment            Payment?
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String   @id @default(uuid())
+  orderId    String
+  menuItemId String
+  quantity   Int
+  price      Float
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_items")
+}
+
+model OrderStatusHistory {
+  id         String      @id @default(uuid())
+  orderId    String
+  fromStatus OrderStatus
+  toStatus   OrderStatus
+  changedBy  String
+  createdAt  DateTime    @default(now())
+  order      Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_status_history")
+}
+
+model Coupon {
+  id             String       @id @default(uuid())
+  code           String       @unique
+  description    String?
+  discountType   DiscountType
+  discountAmount Float
+  minOrderValue  Float        @default(0)
+  maxDiscount    Float?
+  expiresAt      DateTime
+  isActive       Boolean      @default(true)
+  restaurantId   String?
+  createdAt      DateTime     @default(now())
+  restaurant     Restaurant?  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@map("coupons")
+}
+
+model Favorite {
+  id           String     @id @default(uuid())
+  userId       String
+  restaurantId String
+  createdAt    DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, restaurantId])
+  @@map("favorites")
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  orderId         String        @unique
+  amount          Float
+  currency        String        @default("inr")
+  status          PaymentStatus @default(PENDING)
+  paymentIntentId String        @unique
+  stripePaymentId String?
+  paymentMethod   String?
+  failureReason   String?
+  refundAmount    Float?
+  refundedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  order           Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+enum UserRole {
+  USER
+  RESTAURANT
+  ADMIN
+  DELIVERY_PARTNER
+}
+
+enum OrderStatus {
+  PLACED
+  ACCEPTED
+  PREPARING
+  READY
+  COMPLETED
+  REJECTED
+  CANCELLED
+  PICKED_UP
+  OUT_FOR_DELIVERY
+}
+
+enum DiscountType {
+  FLAT
+  PERCENTAGE
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Wallet {
+  id           String        @id @default(uuid())
+  userId       String?       @unique
+  restaurantId String?       @unique
+  balance      Float         @default(0.0)
+  currency     String        @default("INR")
+  updatedAt    DateTime      @updatedAt
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant   Restaurant?   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  payouts      Payout[]
+
+  @@map("wallets")
+}
+
+model Transaction {
+  id          String          @id @default(uuid())
+  walletId    String
+  type        TransactionType
+  amount      Float
+  description String
+  referenceId String?
+  createdAt   DateTime        @default(now())
+  wallet      Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@map("transactions")
+}
+
+model Payout {
+  id                   String       @id @default(uuid())
+  walletId             String
+  amount               Float
+  status               PayoutStatus @default(REQUESTED)
+  processedAt          DateTime?
+  transactionReference String?
+  createdAt            DateTime     @default(now())
+  wallet               Wallet       @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@map("payouts")
+}
+
+enum TransactionType {
+  ORDER_CREDIT
+  COMMISSION_DEBIT
+  PAYOUT
+  REFUND
+  ADD_FUNDS
+}
+
+enum PayoutStatus {
+  REQUESTED
+  PROCESSED
+  FAILED
+}
