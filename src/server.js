@@ -29,7 +29,10 @@ initSocket(httpServer);
 
 // Middleware
 app.use(cors({
-  origin: "http://localhost:8080",
+  origin: [
+    "http://localhost:8080",
+    "https://foodie-go-frontend.vercel.app"
+  ],
   credentials: true
 }));
 
