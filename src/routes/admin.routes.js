@@ -226,6 +226,12 @@ router.patch('/users/:id/verify', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    if (!['RESTAURANT', 'DELIVERY_PARTNER'].includes(user.role)) {
+      return res.status(400).json({
+        error: 'Only RESTAURANT and DELIVERY_PARTNER accounts can be verified from this endpoint'
+      });
+    }
+
     const updatedUser = await prisma.user.update({
       where: { id },
       data: { isVerified: true },

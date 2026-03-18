@@ -10,13 +10,22 @@ const router = express.Router();
 router.post('/register', async (req, res) => {
   try {
     const { name, email, phone, password, role, vehicleType, vehicleNumber } = req.body;
+    const normalizedRole = typeof role === 'string' ? role.toUpperCase() : 'USER';
+    const allowedPublicRoles = ['USER', 'RESTAURANT', 'DELIVERY_PARTNER'];
 
     if (!name || !email || !phone || !password) {
       return res.status(400).json({ error: 'All fields are required' });
     }
 
+    if (!allowedPublicRoles.includes(normalizedRole)) {
+      return res.status(400).json({
+        error: 'Invalid role selected',
+        message: 'You can register only as USER, RESTAURANT, or DELIVERY_PARTNER'
+      });
+    }
+
     // Validate delivery partner fields
-    if (role === 'DELIVERY_PARTNER') {
+    if (normalizedRole === 'DELIVERY_PARTNER') {
       if (!vehicleType || !vehicleNumber) {
         return res.status(400).json({
           error: 'Vehicle details are required for delivery partners',
@@ -40,12 +49,12 @@ router.post('/register', async (req, res) => {
       email,
       phone,
       password: hashedPassword,
-      role: role || 'USER',
-      isVerified: role === 'USER' // Auto-verify regular users, force verification for others
+      role: normalizedRole,
+      isVerified: normalizedRole === 'USER' // Auto-verify regular users, force verification for others
     };
 
     // Add delivery partner specific fields
-    if (role === 'DELIVERY_PARTNER') {
+    if (normalizedRole === 'DELIVERY_PARTNER') {
       userData.vehicleType = vehicleType;
       userData.vehicleNumber = vehicleNumber;
       userData.isAvailable = false; // Default to offline
@@ -118,9 +127,9 @@ router.post('/login', async (req, res) => {
 
     console.log('Login attempt:', { email, role: user.role, isVerified: user.isVerified });
 
-    // Check verification status (skip for ADMIN)
-    if (user.role !== 'ADMIN' && !user.isVerified) {
-      console.log('Login blocked: User not verified and not ADMIN');
+    // Check verification status for all roles
+    if (!user.isVerified) {
+      console.log('Login blocked: User not verified');
       return res.status(403).json({
         error: 'Account pending verification',
         message: 'Your account is pending admin approval. Please wait for verification.'
